@@ -147,8 +147,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build sdist
-        working-directory: ./libmql-py
         uses: PyO3/maturin-action@v1
+        working-directory: ./libmql-py
         with:
           command: sdist
           args: --out dist
