@@ -1,0 +1,189 @@
+{
+  "version": "0.1.0",
+  "requirements": [
+    {
+      "query": {
+        "quantity": {
+          "Single": 1
+        },
+        "selector": [
+          {
+            "Class": {
+              "department_id": "MATH",
+              "course_number": 1150
+            }
+          },
+          {
+            "Placement": "5 on AP Calc"
+          }
+        ]
+      },
+      "description": "prerequirements",
+      "priority": 1
+    },
+    {
+      "query": {
+        "quantity": {
+          "Single": 1
+        },
+        "selector": [
+          {
+            "Class": {
+              "department_id": "MATH",
+              "course_number": 2250
+            }
+          },
+          {
+            "Class": {
+              "department_id": "MATH",
+              "course_number": 2260
+            }
+          }
+        ]
+      },
+      "description": "Linear algebra with proofs",
+      "priority": 1
+    },
+    {
+      "query": {
+        "quantity": {
+          "Single": 1
+        },
+        "selector": [
+          {
+            "Class": {
+              "department_id": "MATH",
+              "course_number": 3020
+            }
+          },
+          {
+            "Class": {
+              "department_id": "MATH",
+              "course_number": 1200
+            }
+          }
+        ]
+      },
+      "description": "Vector analysis or Multivariable calculus",
+      "priority": 1
+    },
+    {
+      "query": {
+        "quantity": {
+          "Single": 1
+        },
+        "selector": [
+          {
+            "Class": {
+              "department_id": "MATH",
+              "course_number": 3500
+            }
+          }
+        ]
+      },
+      "description": "Required",
+      "priority": 1
+    },
+    {
+      "query": {
+        "quantity": {
+          "Single": 1
+        },
+        "selector": [
+          {
+            "Class": {
+              "department_id": "MATH",
+              "course_number": 3050
+            }
+          },
+          {
+            "Class": {
+              "department_id": "MATH",
+              "course_number": 3100
+            }
+          },
+          {
+            "Placement": "can substitute higher level course in same area with DUS approval"
+          }
+        ]
+      },
+      "description": "One of MATH 3050 or MATH 3100, can substitute higher level course in same area with DUS approval",
+      "priority": 1
+    },
+    {
+      "query": {
+        "quantity": {
+          "Single": 3
+        },
+        "selector": [
+          {
+            "Tag": "YC MATH Distribution"
+          }
+        ]
+      },
+      "description": "3 courses in the Math distribution category",
+      "priority": 1
+    },
+    {
+      "query": {
+        "quantity": {
+          "Single": 1
+        },
+        "selector": [
+          {
+            "Range": [
+              {
+                "department_id": "MATH",
+                "course_number": 4800
+              },
+              {
+                "department_id": "MATH",
+                "course_number": 4890
+              }
+            ]
+          },
+          {
+            "Placement": "MATH 4750 with DUS approval"
+          }
+        ]
+      },
+      "description": "Senior requirement",
+      "priority": 1
+    },
+    {
+      "query": {
+        "quantity": {
+          "Single": 10
+        },
+        "selector": [
+          {
+            "Range": [
+              {
+                "department_id": "MATH",
+                "course_number": 2250
+              },
+              {
+                "department_id": "MATH",
+                "course_number": 4699
+              }
+            ]
+          },
+          {
+            "Range": [
+              {
+                "department_id": "MATH",
+                "course_number": 4701
+              },
+              {
+                "department_id": "MATH",
+                "course_number": 4749
+              }
+            ]
+          }
+        ]
+      },
+      "description": "10 courses numbered 2250 or higher (incl senior req) excl Math 4700",
+      "priority": 1
+    }
+  ]
+}

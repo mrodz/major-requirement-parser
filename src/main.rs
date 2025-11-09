@@ -1,15 +1,43 @@
-use anyhow::{Context, Result};
-use pest::Parser;
-
-use crate::parser::{MQLParser, Rule};
-
+mod cli;
 mod parser;
 mod test;
 
-const EXAMPLE_3: &str = r#"SELECT 1 FROM SELECT 1 FROM CLASS(MATH 2250) : "must take MATH 2250";"#;
+use anyhow::{Context, Result, bail};
+use clap::Parser as ClapParser;
+use pest::Parser;
+
+use std::io::Read;
+use std::{fs::File, io::Write};
+
+use crate::parser::{MQLParser, Rule};
+
+const EXTENSION: &str = "mql";
 
 fn main() -> Result<()> {
-    let mut result = MQLParser::parse(Rule::file, EXAMPLE_3)
+    let cli = cli::Args::parse();
+
+    let input = cli.input();
+    let output = cli.output();
+
+    let Some(EXTENSION) = input.extension().and_then(|s| s.to_str()) else {
+        bail!("the Major Query Language uses the .mql file extension")
+    };
+
+    if let Some(output_path) = output {
+        let Some("json") = output_path.extension().and_then(|s| s.to_str()) else {
+            bail!("the Major Query Language can only output to a .json file")
+        };
+    }
+
+    let mut input_file = File::open(input).context("could not open file")?;
+
+    let mut buf = String::new();
+
+    input_file
+        .read_to_string(&mut buf)
+        .context("file was not UTF-8")?;
+
+    let mut result = MQLParser::parse(Rule::file, &buf)
         .map_err(|e| e.renamed_rules(parser::renamed_rules_impl))?;
 
     let parsed_mql_file =
@@ -17,7 +45,20 @@ fn main() -> Result<()> {
 
     let as_json = serde_json::to_string_pretty(&parsed_mql_file)?;
 
-    println!("{as_json}");
+    if let Some(output_path) = cli.output() {
+        let mut output_file = File::options()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(output_path)
+            .context("could not get handle to output file")?;
+
+        output_file
+            .write(as_json.as_bytes())
+            .context("could not write to output file")?;
+    } else {
+        println!("{as_json}");
+    }
 
     Ok(())
 }

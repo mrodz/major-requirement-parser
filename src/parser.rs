@@ -49,6 +49,7 @@ pub struct MQLRequirement {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct MQLQueryFile {
+    version: &'static str,
     requirements: Vec<MQLRequirement>,
 }
 
@@ -97,9 +98,7 @@ impl MQLParser {
             }
             Rule::quantity_many => {
                 let mut inner_children = inner.into_inner();
-                let from_node = inner_children
-                    .next()
-                    .unwrap();
+                let from_node = inner_children.next().unwrap();
                 let from = from_node
                     .as_str()
                     .parse::<u16>()
@@ -111,7 +110,10 @@ impl MQLParser {
                     .context("selection could not fit as u16")?;
 
                 if from == 0 && top_level {
-                    bail_with_span!(from_node.as_span(), "cannot select a range starting from zero on a top-level SELECT")
+                    bail_with_span!(
+                        from_node.as_span(),
+                        "cannot select a range starting from zero on a top-level SELECT"
+                    )
                 }
 
                 if to < from {
@@ -304,7 +306,8 @@ impl MQLParser {
         )?;
         assert_eq!(selector.as_rule(), Rule::selector);
 
-        let quantity = Self::parse_quantity(quantity, top_level).context("failed parsing quantity")?;
+        let quantity =
+            Self::parse_quantity(quantity, top_level).context("failed parsing quantity")?;
         let selector = Self::parse_selector(selector).context("failed parsing selector")?;
 
         Ok(MQLQuery { quantity, selector })
@@ -346,6 +349,9 @@ impl MQLParser {
             }
         }
 
-        Ok(MQLQueryFile { requirements })
+        Ok(MQLQueryFile {
+            requirements,
+            version: env!("CARGO_PKG_VERSION"),
+        })
     }
 }

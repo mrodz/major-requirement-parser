@@ -28,3 +28,6 @@ SELECT 1 FROM [
 : 1
 ;
 "#;
+
+#[allow(unused)]
+const EXAMPLE_3: &str = r#"SELECT 1 FROM SELECT 1 FROM CLASS(MATH 2250) : "must take MATH 2250";"#;
