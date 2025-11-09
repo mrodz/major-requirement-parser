@@ -74,6 +74,7 @@ jobs:
         with:
           python-version: 3.x
       - name: Build wheels
+        working-directory: ./libmql-py
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
@@ -102,6 +103,7 @@ jobs:
           python-version: 3.x
           architecture: ${{ matrix.platform.target }}
       - name: Build wheels
+        working-directory: ./libmql-py
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
@@ -128,6 +130,7 @@ jobs:
         with:
           python-version: 3.x
       - name: Build wheels
+        working-directory: ./libmql-py
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
@@ -144,12 +147,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build sdist
+        working-directory: ./libmql-py
         uses: PyO3/maturin-action@v1
         with:
           command: sdist
           args: --out dist
       - name: Upload sdist
         uses: actions/upload-artifact@v4
+        working-directory: ./libmql-py
         with:
           name: wheels-sdist
           path: dist
