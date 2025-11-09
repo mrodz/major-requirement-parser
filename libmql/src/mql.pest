@@ -4,16 +4,18 @@ COMMENT = _{ "//" ~ (!"\n" ~ ANY)* }
 select = { "SELECT" }
 from = { "FROM" }
 
-quantity_single = { ASCII_DIGIT* }
-quantity_many = { quantity_single ~ "-" ~ quantity_single }
+quantity_single = @{ ASCII_DIGIT+ }
+quantity_many = ${ quantity_single ~ "-" ~ quantity_single }
 quantity = { quantity_many | quantity_single }
 
-class = { "CLASS" | "class" }
-placement = { "PLACEMENT" | "placement" }
-tag = { "TAG" | "tag" }
-range = { "RANGE" | "range" }
+class = @{ "CLASS" | "class" }
+placement = @{ "PLACEMENT" | "placement" }
+tag = @{ "TAG" | "tag" }
+range = @{ "RANGE" | "range" }
+bad_query = @{ (ASCII_ALPHANUMERIC | "_")+ }
 
-query_name = { class | placement | tag | range }
+query_name = ${ (class | placement | tag | range) ~ ! (ASCII_ALPHANUMERIC | "_")
+  | bad_query }
 
 string = @{ "\"" ~ ( "\"\"" | (!("\"" | "\r" | "\n") ~ (ANY)) )* ~ "\"" }
 

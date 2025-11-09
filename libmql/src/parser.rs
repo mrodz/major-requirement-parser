@@ -4,7 +4,7 @@ use pest_derive::Parser;
 use serde::Serialize;
 
 #[derive(Parser)]
-#[grammar = "mql.pest"]
+#[grammar = "./mql.pest"]
 pub struct MQLParser;
 
 #[derive(Debug, Clone, Serialize)]
@@ -53,19 +53,33 @@ pub struct MQLQueryFile {
     requirements: Vec<MQLRequirement>,
 }
 
+impl MQLQueryFile {
+    pub fn version(&self) -> &'static str {
+        self.version
+    }
+
+    pub fn requirements(&self) -> &[MQLRequirement] {
+        &self.requirements
+    }
+}
+
 pub(crate) fn renamed_rules_impl(rule: &Rule) -> String {
     match *rule {
         Rule::lpar => "(".to_owned(),
         Rule::rpar => ")".to_owned(),
         Rule::semicolon => ";".to_owned(),
         Rule::string => "<STRING>".to_owned(),
+        Rule::quantity_single => "quantity (u16 int)".to_owned(),
         other => format!("{other:?}"),
     }
 }
 
 macro_rules! bail_with_span {
     ($span:expr, $($msg:tt)+) => {
-        return Err(anyhow::anyhow!(pest::error::Error::new_from_span(pest::error::ErrorVariant::<Rule>::CustomError {
+        return bail_with_span!(noret $span, $($msg)+)
+    };
+    (noret $span:expr, $($msg:tt)+) => {
+        Err(anyhow::anyhow!(pest::error::Error::new_from_span(pest::error::ErrorVariant::<Rule>::CustomError {
             message: format!($($msg)+)
         }, $span).renamed_rules(renamed_rules_impl)
     ))
@@ -189,7 +203,9 @@ impl MQLParser {
         let next = inner.next().context("XYZ should have query_name")?;
 
         let query_name = next;
+        let query_name_span = query_name.as_span();
         assert_eq!(query_name.as_rule(), Rule::query_name);
+
         let query_name_inner = query_name.into_inner().next().unwrap();
 
         let mut args = vec![];
@@ -236,11 +252,16 @@ impl MQLParser {
                 };
                 Selector::Range(class_start.clone(), class_end.clone())
             }
+            Rule::bad_query => {
+                bail_with_span!(
+                    query_name_span,
+                    "not a query (expected CLASS, RANGE, TAG, PLACEMENT)"
+                )
+            }
             _ => unreachable!(),
         };
 
         Ok(selector)
-        // Ok(inner.to_owned())
     }
 
     fn parse_selector_single(selector_single: Pair<Rule>) -> Result<Selector> {
@@ -258,7 +279,7 @@ impl MQLParser {
             ));
         }
 
-        let xyz = Self::parse_xyz(inner).context("cannot create selector")?;
+        let xyz = Self::parse_xyz(inner)?;
 
         Ok(xyz)
     }
@@ -308,6 +329,7 @@ impl MQLParser {
 
         let quantity =
             Self::parse_quantity(quantity, top_level).context("failed parsing quantity")?;
+
         let selector = Self::parse_selector(selector).context("failed parsing selector")?;
 
         Ok(MQLQuery { quantity, selector })

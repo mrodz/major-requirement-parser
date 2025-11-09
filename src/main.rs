@@ -1,16 +1,13 @@
 mod cli;
-mod parser;
-mod test;
 
 use anyhow::{Context, Result, bail};
 use clap::Parser as ClapParser;
-use pest::Parser;
 
 use std::io::Read;
 use std::time::Instant;
 use std::{fs::File, io::Write};
 
-use crate::parser::{MQLParser, Rule};
+use libmql;
 
 const EXTENSION: &str = "mql";
 
@@ -40,13 +37,7 @@ fn main() -> Result<()> {
         .read_to_string(&mut buf)
         .context("file was not UTF-8")?;
 
-    let mut result = MQLParser::parse(Rule::file, &buf)
-        .map_err(|e| e.renamed_rules(parser::renamed_rules_impl))?;
-
-    let parsed_mql_file =
-        MQLParser::parse_file(result.next().context("File should have a child rule")?)?;
-
-    let as_json = serde_json::to_string_pretty(&parsed_mql_file)?;
+    let result = libmql::parse(&buf)?;
 
     if let Some(output_path) = cli.output() {
         let mut output_file = File::options()
@@ -57,7 +48,7 @@ fn main() -> Result<()> {
             .context("could not get handle to output file")?;
 
         output_file
-            .write(as_json.as_bytes())
+            .write(result.to_string_pretty()?.as_bytes())
             .context("could not write to output file")?;
 
         let elapsed_time = start.elapsed();
@@ -68,7 +59,7 @@ fn main() -> Result<()> {
             elapsed_time.as_millis()
         )
     } else {
-        println!("{as_json}");
+        println!("{}", result.to_string_pretty()?);
     }
 
     Ok(())
