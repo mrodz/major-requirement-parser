@@ -42,6 +42,7 @@ jobs:
         with:
           python-version: 3.x
       - name: Build wheels
+        working-directory: ./libmql-py
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
