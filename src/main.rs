@@ -6,7 +6,7 @@ use crate::parser::{MQLParser, Rule};
 mod parser;
 mod test;
 
-const EXAMPLE_3: &str = r#"SELECT 1 FROM CLASS(MATH 2250) : "must take MATH 2250";"#;
+const EXAMPLE_3: &str = r#"SELECT 1 FROM SELECT 1 FROM CLASS(MATH 2250) : "must take MATH 2250";"#;
 
 fn main() -> Result<()> {
     let mut result = MQLParser::parse(Rule::file, EXAMPLE_3)
@@ -15,7 +15,9 @@ fn main() -> Result<()> {
     let parsed_mql_file =
         MQLParser::parse_file(result.next().context("File should have a child rule")?)?;
 
-    dbg!(parsed_mql_file);
+    let as_json = serde_json::to_string_pretty(&parsed_mql_file)?;
+
+    println!("{as_json}");
 
     Ok(())
 }

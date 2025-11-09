@@ -1,30 +1,31 @@
 use anyhow::{Context, Result};
 use pest::iterators::Pair;
 use pest_derive::Parser;
+use serde::Serialize;
 
 #[derive(Parser)]
 #[grammar = "mql.pest"]
 pub struct MQLParser;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum Quantity {
     Single(u16),
     Many { from: u16, to: u16 },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Class {
     department_id: String,
     course_number: u16,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum Argument {
     String(String),
     Class(Class),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum Selector {
     Class(Class),
     Placement(String),
@@ -33,22 +34,22 @@ pub enum Selector {
     Query(MQLQuery),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct MQLQuery {
     quantity: Quantity,
     selector: Vec<Selector>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct MQLRequirement {
     query: MQLQuery,
     description: String,
     priority: u16,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct MQLQueryFile {
-    queries: Vec<MQLRequirement>,
+    requirements: Vec<MQLRequirement>,
 }
 
 pub(crate) fn renamed_rules_impl(rule: &Rule) -> String {
@@ -72,7 +73,7 @@ macro_rules! bail_with_span {
 
 impl MQLParser {
     // quantity = { quantity_single }
-    fn parse_quantity(quantity: Pair<Rule>) -> Result<Quantity> {
+    fn parse_quantity(quantity: Pair<Rule>, top_level: bool) -> Result<Quantity> {
         assert_eq!(quantity.as_rule(), Rule::quantity);
 
         let inner = quantity
@@ -88,13 +89,18 @@ impl MQLParser {
                     .parse::<u16>()
                     .context("selection could not fit as u16")?;
 
+                if as_number == 0 {
+                    bail_with_span!(inner.as_span(), "cannot select zero")
+                }
+
                 Ok(Quantity::Single(as_number))
             }
             Rule::quantity_many => {
                 let mut inner_children = inner.into_inner();
-                let from = inner_children
+                let from_node = inner_children
                     .next()
-                    .unwrap()
+                    .unwrap();
+                let from = from_node
                     .as_str()
                     .parse::<u16>()
                     .context("selection could not fit as u16")?;
@@ -103,6 +109,10 @@ impl MQLParser {
                     .as_str()
                     .parse::<u16>()
                     .context("selection could not fit as u16")?;
+
+                if from == 0 && top_level {
+                    bail_with_span!(from_node.as_span(), "cannot select a range starting from zero on a top-level SELECT")
+                }
 
                 if to < from {
                     bail_with_span!(
@@ -242,7 +252,7 @@ impl MQLParser {
 
         if inner.as_rule() == Rule::statement {
             return Ok(Selector::Query(
-                Self::parse_query(inner).context("could not parse nested query")?,
+                Self::parse_query(inner, false).context("could not parse nested query")?,
             ));
         }
 
@@ -267,7 +277,7 @@ impl MQLParser {
         }
     }
 
-    fn parse_query(query: Pair<Rule>) -> Result<MQLQuery> {
+    fn parse_query(query: Pair<Rule>, top_level: bool) -> Result<MQLQuery> {
         assert_eq!(query.as_rule(), Rule::statement);
 
         // { select ~ quantity ~ from ~ selector }
@@ -294,7 +304,7 @@ impl MQLParser {
         )?;
         assert_eq!(selector.as_rule(), Rule::selector);
 
-        let quantity = Self::parse_quantity(quantity).context("failed parsing quantity")?;
+        let quantity = Self::parse_quantity(quantity, top_level).context("failed parsing quantity")?;
         let selector = Self::parse_selector(selector).context("failed parsing selector")?;
 
         Ok(MQLQuery { quantity, selector })
@@ -303,21 +313,13 @@ impl MQLParser {
     pub fn parse_file(root_pair: Pair<Rule>) -> Result<MQLQueryFile> {
         assert_eq!(root_pair.as_rule(), Rule::file);
 
-        let mut queries = vec![];
+        let mut requirements = vec![];
 
         let children = root_pair.into_inner();
 
         for child in children {
             match child.as_rule() {
                 Rule::EOI => (),
-                Rule::statement => {
-                    let query = Self::parse_query(child)?;
-                    queries.push(MQLRequirement {
-                        query,
-                        description: String::new(),
-                        priority: 0,
-                    });
-                }
                 Rule::special_statement => {
                     let mut inner = child.into_inner();
 
@@ -333,8 +335,8 @@ impl MQLParser {
                         1
                     };
 
-                    let query = Self::parse_query(statement)?;
-                    queries.push(MQLRequirement {
+                    let query = Self::parse_query(statement, true)?;
+                    requirements.push(MQLRequirement {
                         query,
                         description: Self::parse_string(description),
                         priority,
@@ -344,6 +346,6 @@ impl MQLParser {
             }
         }
 
-        Ok(MQLQueryFile { queries })
+        Ok(MQLQueryFile { requirements })
     }
 }
