@@ -7,6 +7,7 @@ use clap::Parser as ClapParser;
 use pest::Parser;
 
 use std::io::Read;
+use std::time::Instant;
 use std::{fs::File, io::Write};
 
 use crate::parser::{MQLParser, Rule};
@@ -14,6 +15,8 @@ use crate::parser::{MQLParser, Rule};
 const EXTENSION: &str = "mql";
 
 fn main() -> Result<()> {
+    let start = Instant::now();
+
     let cli = cli::Args::parse();
 
     let input = cli.input();
@@ -56,6 +59,14 @@ fn main() -> Result<()> {
         output_file
             .write(as_json.as_bytes())
             .context("could not write to output file")?;
+
+        let elapsed_time = start.elapsed();
+
+        println!(
+            "output to {:?} in {}ms",
+            output_path,
+            elapsed_time.as_millis()
+        )
     } else {
         println!("{as_json}");
     }
