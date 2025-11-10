@@ -147,6 +147,7 @@ jobs:
         with:
           command: sdist
           args: --out dist
+          working-directory: ./libmql-py
       - name: Upload sdist
         uses: actions/upload-artifact@v4
         with:
