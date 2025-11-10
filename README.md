@@ -1,5 +1,44 @@
 # major-requirement-parser
 
+## Components
+- Command Line Interface
+- Rust Library
+- Python Library (FFI bindings)
+
+### Command Line Usage
+
+```
+Usage: mql [OPTIONS] <INPUT>
+
+Arguments:
+  <INPUT>
+          Path to the input file
+
+Options:
+  -o, --output <OUTPUT>
+          Path to the output file [Default: output to `stdout`]
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -V, --version
+          Print version
+```
+
+### Python Instalation
+
+```bash
+# minimum version 3.8
+pip install pylibmql
+```
+Ready to use right away.
+```py
+import pylibmql
+```
+See walkthrough [here](./demo.ipynb).
+
+## MQL Syntax
+
 ```ebnf
 File              ::= SpecialStatement ";" { SpecialStatement ";" } ;
 
