@@ -19,10 +19,14 @@ query_name = ${ (class | placement | tag | range) ~ ! (ASCII_ALPHANUMERIC | "_")
 
 string = @{ "\"" ~ ( "\"\"" | (!("\"" | "\r" | "\n") ~ (ANY)) )* ~ "\"" }
 
-department_id = { ASCII_ALPHA_UPPER{4} }
+department_id_char = _{ ASCII_ALPHA_UPPER | "&" }
+
+bad_department_id = { ASCII_ALPHA{5,} | ASCII_ALPHA{1,3} }
+department_id = { department_id_char{4} }
+
 class_id = { ASCII_DIGIT{4} }
 
-class_argument = { department_id ~ class_id }
+class_argument = ${ (bad_department_id ~ (" ")* ~ class_id) | (department_id ~ (" ")* ~ class_id) }
 
 query_argument = { string | class_argument }
 
@@ -42,6 +46,9 @@ statement = !{ select ~ quantity ~ from ~ selector }
 
 sep = _{ ":"}
 
-special_statement = { statement ~ sep ~ string ~ (sep ~ quantity_single)? }
+description = _{ (sep ~ string) }
+priority = _{ (sep ~ quantity_single) }
+
+special_statement = { statement ~ description ~ priority? }
 
 file = { SOI ~ (special_statement ~ semicolon)* ~ EOI  }

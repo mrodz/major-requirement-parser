@@ -1,7 +1,8 @@
 [package]
-name = "major-requirement-parser"
-version = "0.1.3"
+name = "major-requirement-parser-cli"
+version = "0.1.4"
 edition = "2024"
+default-run = "mql"
 
 [[bin]]
 name = "mql"

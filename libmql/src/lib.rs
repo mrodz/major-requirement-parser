@@ -1,4 +1,6 @@
+mod closest_string;
 mod parser;
+mod yale_departments;
 
 use anyhow::{Context, Result};
 use parser::{MQLParser, Rule};

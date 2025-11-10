@@ -3,6 +3,11 @@ use pest::iterators::Pair;
 use pest_derive::Parser;
 use serde::Serialize;
 
+use crate::{
+    closest_string::closest_string,
+    yale_departments::{closest_department, is_department},
+};
+
 #[derive(Parser)]
 #[grammar = "./mql.pest"]
 pub struct MQLParser;
@@ -68,8 +73,13 @@ pub(crate) fn renamed_rules_impl(rule: &Rule) -> String {
         Rule::lpar => "(".to_owned(),
         Rule::rpar => ")".to_owned(),
         Rule::semicolon => ";".to_owned(),
-        Rule::string => "<STRING>".to_owned(),
-        Rule::quantity_single => "quantity (u16 int)".to_owned(),
+        Rule::string => "<STRING> primitive".to_owned(),
+        Rule::class => "<CLASS> primitive".to_owned(),
+        Rule::quantity => "quantity: (single: u16) or (multiple: u16-u16)".to_owned(),
+        Rule::quantity_single => "quantity (u16)".to_owned(),
+        Rule::department_id => "department id (4-symbols)".to_owned(),
+        Rule::class_id => "class id (4-digit int)".to_owned(),
+        Rule::query_argument => "query argument (<CLASS> or <STRING> primitives)".to_owned(),
         other => format!("{other:?}"),
     }
 }
@@ -162,7 +172,9 @@ impl MQLParser {
     fn parse_string(string: Pair<Rule>) -> String {
         assert_eq!(string.as_rule(), Rule::string);
         let contents_with_quotes = string.as_str();
-        contents_with_quotes[1..contents_with_quotes.len() - 1].to_owned()
+        contents_with_quotes[1..contents_with_quotes.len() - 1]
+            .replace("\"\"", "\"")
+            .to_owned()
     }
 
     fn parse_function_argument(argument: Pair<Rule>) -> Result<Argument> {
@@ -175,17 +187,33 @@ impl MQLParser {
             Rule::class_argument => {
                 // class_argument = @{ department_id ~ WHITESPACE ~ class_id }
                 let mut inner_children = inner.into_inner();
-                let department_id = inner_children.next().context("expected department_id")?;
+                let department_id_pair = inner_children.next().context("expected department_id")?;
+
+                if department_id_pair.as_rule() == Rule::bad_department_id {
+                    bail_with_span!(
+                        department_id_pair.as_span(),
+                        "departments must be 4 uppercase ASCII character symbols"
+                    );
+                }
+
                 let class_id = inner_children.next().context("expected class_id")?;
 
                 let class_id_str = class_id.as_str();
                 let course_number = class_id_str
                     .parse::<u16>()
                     .context("could not parse class_id into u16")?;
-                let department_id = department_id.as_str().to_owned();
+                let department_id = department_id_pair.as_str();
+
+                if !is_department(department_id) {
+                    let potential_misspelling = closest_department(department_id);
+                    bail_with_span!(
+                        department_id_pair.as_span(),
+                        "this department does not exist in Yale's course catalog (Did you mean: {potential_misspelling})"
+                    )
+                }
 
                 Ok(Argument::Class(Class {
-                    department_id,
+                    department_id: department_id.to_owned(),
                     course_number,
                 }))
             }
@@ -253,9 +281,15 @@ impl MQLParser {
                 Selector::Range(class_start.clone(), class_end.clone())
             }
             Rule::bad_query => {
+                let potential_misspelling = closest_string(
+                    query_name_inner.as_str(),
+                    &["CLASS", "RANGE", "TAG", "PLACEMENT"],
+                )
+                .unwrap();
+
                 bail_with_span!(
                     query_name_span,
-                    "not a query (expected CLASS, RANGE, TAG, PLACEMENT)"
+                    "not a valid query (Did you mean: {potential_misspelling})"
                 )
             }
             _ => unreachable!(),
