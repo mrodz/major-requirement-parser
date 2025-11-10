@@ -37,13 +37,11 @@ impl MQL {
     }
 }
 
-/// Formats the sum of two numbers as string.
 #[pyfunction]
 fn parse(mql: String) -> PyResult<MQL> {
     MQL::new(mql)
 }
 
-/// A Python module implemented in Rust.
 #[pymodule]
 fn pylibmql(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse, m)?)?;
