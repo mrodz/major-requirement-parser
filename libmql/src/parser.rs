@@ -35,7 +35,14 @@ pub enum Selector {
     Class(Class),
     Placement(String),
     Tag(String),
-    Range(Class, Class),
+    TagCode {
+        tag: String, 
+        code: String
+    },
+    Range {
+        from: Class,
+        to: Class
+    },
     Query(MQLQuery),
 }
 
@@ -278,12 +285,21 @@ impl MQLParser {
                         "RANGE function must take two <CLASS>, <CLASS> arguments of the form `DEPARTMENT_ID CLASS_ID`"
                     )
                 };
-                Selector::Range(class_start.clone(), class_end.clone())
+                Selector::Range { from: class_start.clone(), to: class_end.clone() }
+            }
+            Rule::tag_dept => {
+                let [Argument::String(tag), Argument::String(code)] = args.as_slice() else {
+                    bail_with_span!(
+                        span,
+                        "TAG_DEPT function must take two <STRING>, <STRING> arguments of the form `\"YC TAG\"`, `\"Yale Code\"`"
+                    )
+                };
+                Selector::TagCode { tag: tag.clone(), code: code.clone() }
             }
             Rule::bad_query => {
                 let potential_misspelling = closest_string(
                     query_name_inner.as_str(),
-                    &["CLASS", "RANGE", "TAG", "PLACEMENT"],
+                    &["CLASS", "RANGE", "TAG_DEPT", "TAG", "PLACEMENT"],
                 )
                 .unwrap();
 
