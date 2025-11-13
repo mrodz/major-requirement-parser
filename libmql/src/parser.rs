@@ -39,6 +39,11 @@ pub enum Selector {
         tag: String, 
         code: String
     },
+    Dist(String),
+    DistCode {
+        dist: String,
+        code: String,
+    },
     Range {
         from: Class,
         to: Class
@@ -291,15 +296,33 @@ impl MQLParser {
                 let [Argument::String(tag), Argument::String(code)] = args.as_slice() else {
                     bail_with_span!(
                         span,
-                        "TAG_DEPT function must take two <STRING>, <STRING> arguments of the form `\"YC TAG\"`, `\"Yale Code\"`"
+                        "TAG_DEPT function must take two <STRING>, <STRING> arguments of the form `\"YC TAG\"`, `\"Yale Major Code\"`"
                     )
                 };
                 Selector::TagCode { tag: tag.clone(), code: code.clone() }
             }
+            Rule::dist => {
+                let [Argument::String(dist)] = args.as_slice() else {
+                    bail_with_span!(
+                        span,
+                        "DIST function must take two <STRING> arguments of the form `\"YC dist\"`"
+                    )
+                };
+                Selector::Dist(dist.clone())
+            }
+            Rule::dist_dept => {
+                let [Argument::String(dist), Argument::String(code)] = args.as_slice() else {
+                    bail_with_span!(
+                        span,
+                        "DIST_DEPT function must take two <STRING>, <STRING> arguments of the form `\"YC dist\"`, `\"Yale Major Code\"`"
+                    )
+                };
+                Selector::DistCode { dist: dist.clone(), code: code.clone() }
+            }
             Rule::bad_query => {
                 let potential_misspelling = closest_string(
                     query_name_inner.as_str(),
-                    &["CLASS", "RANGE", "TAG_DEPT", "TAG", "PLACEMENT"],
+                    &["CLASS", "RANGE", "TAG_DEPT", "TAG", "PLACEMENT", "DIST", "DIST_DEPT"],
                 )
                 .unwrap();
 

@@ -12,11 +12,13 @@ class = @{ "CLASS" | "class" }
 placement = @{ "PLACEMENT" | "placement" }
 tag = @{ "TAG" | "tag" }
 range = @{ "RANGE" | "range" }
-tag_dept = @{ "TAG_DEPT" | "TAG_DEPT" }
+tag_dept = @{ "TAG_DEPT" | "tag_dept" }
+dist = @{ "DIST" | "dist" }
+dist_dept = @{ "DIST_DEPT" | "dist_dept" }
 
 bad_query = @{ (ASCII_ALPHANUMERIC | "_")+ }
 
-query_name = ${ (class | placement | tag_dept | tag | range) ~ ! (ASCII_ALPHANUMERIC | "_")
+query_name = ${ (class | placement | tag_dept | tag | dist_dept | dist | range) ~ ! (ASCII_ALPHANUMERIC | "_")
   | bad_query }
 
 string = @{ "\"" ~ ( "\"\"" | (!("\"" | "\r" | "\n") ~ (ANY)) )* ~ "\"" }
