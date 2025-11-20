@@ -423,7 +423,8 @@ impl MQLParser {
         
         let r#type = match select.as_rule() {
             Rule::select => MQLQueryType::Select,
-            Rule::limit => MQLQueryType::Limit,
+            Rule::limit if top_level => MQLQueryType::Limit,
+            Rule::limit => bail_with_span!(select.as_span(), "LIMIT must be a top-level query"),
             bad => unreachable!("{bad:?}"),
         };
 
