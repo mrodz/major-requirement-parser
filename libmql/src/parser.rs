@@ -22,6 +22,7 @@ pub enum Quantity {
 pub struct Class {
     department_id: String,
     course_number: u16,
+    lab: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -227,7 +228,14 @@ impl MQLParser {
 
                 let class_id = inner_children.next().context("expected class_id")?;
 
-                let class_id_str = class_id.as_str();
+                let mut class_id_str = class_id.as_str();
+
+                let lab = class_id_str.ends_with('L');
+
+                if lab {
+                    class_id_str = &class_id_str[..class_id_str.len() - 1];
+                }
+
                 let course_number = class_id_str
                     .parse::<u16>()
                     .context("could not parse class_id into u16")?;
@@ -244,6 +252,7 @@ impl MQLParser {
                 Ok(Argument::Class(Class {
                     department_id: department_id.to_owned(),
                     course_number,
+                    lab,
                 }))
             }
             rule => unreachable!("should have {{ string | class_argument }}, got {rule:?}"),
