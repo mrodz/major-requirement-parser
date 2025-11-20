@@ -48,12 +48,29 @@ pub enum Selector {
         from: Class,
         to: Class
     },
+    RangeDist {
+        from: Class,
+        to: Class,
+        dist: String
+    },
+    RangeTag {
+        from: Class,
+        to: Class,
+        tag: String
+    },
     Query(MQLQuery),
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub enum MQLQueryType {
+    Select,
+    Limit,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct MQLQuery {
     quantity: Quantity,
+    r#type: MQLQueryType,
     selector: Vec<Selector>,
 }
 
@@ -319,10 +336,30 @@ impl MQLParser {
                 };
                 Selector::DistCode { dist: dist.clone(), code: code.clone() }
             }
+            Rule::range_dist => {
+                let [Argument::Class(from), Argument::Class(to), Argument::String(dist)] = args.as_slice() else {
+                    bail_with_span!(
+                        span,
+                        "RANGE_DIST function must take three <CLASS>, <CLASS>, <STRING> arguments"
+                    )
+                };
+
+                Selector::RangeDist { from: from.clone(), to: to.clone(), dist: dist.clone() }
+            }
+            Rule::range_tag => {
+                let [Argument::Class(from), Argument::Class(to), Argument::String(tag)] = args.as_slice() else {
+                    bail_with_span!(
+                        span,
+                        "RANGE_TAG function must take three <CLASS>, <CLASS>, <STRING> arguments"
+                    )
+                };
+
+                Selector::RangeTag { from: from.clone(), to: to.clone(), tag: tag.clone() }    
+            }
             Rule::bad_query => {
                 let potential_misspelling = closest_string(
                     query_name_inner.as_str(),
-                    &["CLASS", "RANGE", "TAG_DEPT", "TAG", "PLACEMENT", "DIST", "DIST_DEPT"],
+                    &["CLASS", "RANGE", "TAG_DEPT", "TAG", "PLACEMENT", "DIST", "DIST_DEPT", "RANGE_DIST", "RANGE_TAG"],
                 )
                 .unwrap();
 
@@ -383,7 +420,12 @@ impl MQLParser {
         let select = inner.next().context(
             "should have { select ~ quantity ~ from ~ selector ~ semicolon }, missing select",
         )?;
-        assert_eq!(select.as_rule(), Rule::select);
+        
+        let r#type = match select.as_rule() {
+            Rule::select => MQLQueryType::Select,
+            Rule::limit => MQLQueryType::Limit,
+            bad => unreachable!("{bad:?}"),
+        };
 
         let quantity = inner.next().context(
             "should have { select ~ quantity ~ from ~ selector ~ semicolon }, missing quantity",
@@ -405,7 +447,7 @@ impl MQLParser {
 
         let selector = Self::parse_selector(selector).context("failed parsing selector")?;
 
-        Ok(MQLQuery { quantity, selector })
+        Ok(MQLQuery { quantity, r#type, selector })
     }
 
     pub fn parse_file(root_pair: Pair<Rule>) -> Result<MQLQueryFile> {

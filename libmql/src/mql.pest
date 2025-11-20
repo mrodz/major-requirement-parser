@@ -2,6 +2,7 @@ WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
 COMMENT = _{ "//" ~ (!"\n" ~ ANY)* }
 
 select = { "SELECT" }
+limit = { "LIMIT" }
 from = { "FROM" }
 
 quantity_single = @{ ASCII_DIGIT+ }
@@ -15,11 +16,13 @@ range = @{ "RANGE" | "range" }
 tag_dept = @{ "TAG_DEPT" | "tag_dept" }
 dist = @{ "DIST" | "dist" }
 dist_dept = @{ "DIST_DEPT" | "dist_dept" }
+range_dist = @{ "RANGE_DIST" | "range_dist" }
+range_tag = @{ "RANGE_TAG" | "range_tag" }
 
 bad_query = @{ (ASCII_ALPHANUMERIC | "_")+ }
 
-query_name = ${ (class | placement | tag_dept | tag | dist_dept | dist | range) ~ ! (ASCII_ALPHANUMERIC | "_")
-  | bad_query }
+query_name = ${ (class | placement | tag_dept | tag | dist_dept | dist | range_dist | range_tag | range) 
+  ~ ! (ASCII_ALPHANUMERIC | "_") | bad_query }
 
 string = @{ "\"" ~ ( "\"\"" | (!("\"" | "\r" | "\n") ~ (ANY)) )* ~ "\"" }
 
@@ -46,7 +49,7 @@ selector = { selector_list | selector_single }
 
 semicolon = _{ ";" }
 
-statement = !{ select ~ quantity ~ from ~ selector }
+statement = !{ (select | limit) ~ quantity ~ from ~ selector }
 
 sep = _{ ":"}
 
