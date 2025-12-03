@@ -222,7 +222,7 @@ impl MQLParser {
                 if department_id_pair.as_rule() == Rule::bad_department_id {
                     bail_with_span!(
                         department_id_pair.as_span(),
-                        "departments must be 4 uppercase ASCII character symbols"
+                        "departments must be 3-4 uppercase ASCII character symbols"
                     );
                 }
 

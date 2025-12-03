@@ -28,8 +28,8 @@ string = @{ "\"" ~ ( "\"\"" | (!("\"" | "\r" | "\n") ~ (ANY)) )* ~ "\"" }
 
 department_id_char = _{ ASCII_ALPHA_UPPER | "&" }
 
-bad_department_id = { ASCII_ALPHA{5,} | ASCII_ALPHA{1,3} }
-department_id = { department_id_char{4} }
+bad_department_id = { ASCII_ALPHA{5,} | ASCII_ALPHA{1,2} }
+department_id = { department_id_char{3,4} }
 
 class_id = ${ ASCII_DIGIT{4} ~ "L"? }
 
