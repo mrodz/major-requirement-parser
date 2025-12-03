@@ -205,7 +205,7 @@ checksum = "2874a2af47a2325c2001a6e6fad9b16a53b802102b528163885171cf92b15976"
 
 [[package]]
 name = "libmql"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -312,7 +312,7 @@ dependencies = [
 
 [[package]]
 name = "pylibmql"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "libmql",
  "pyo3",
