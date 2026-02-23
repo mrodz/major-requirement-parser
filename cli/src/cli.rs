@@ -24,21 +24,28 @@ of the ~80 Yale majors.
   https://github.com/majoraudit"#;
 
 #[derive(Parser, Debug)]
-#[command(version, about, long_about = CLI_LONG_ABOUT)]
+#[command(about, long_about = CLI_LONG_ABOUT)]
 pub(crate) struct Args {
     /// Path to the input file
-    input: PathBuf,
+    input: Option<PathBuf>,
     /// Path to the output file [Default: output to `stdout`]
     #[arg(long, short)]
     output: Option<PathBuf>,
+
+    #[arg(long = "version", short = 'V', action = clap::ArgAction::SetTrue)]
+    version: bool,
 }
 
 impl Args {
-    pub fn input(&self) -> &Path {
-        self.input.as_path()
+    pub fn input(&self) -> Option<&Path> {
+        self.input.as_deref()
     }
 
     pub fn output(&self) -> Option<&Path> {
         self.output.as_deref()
+    }
+
+    pub fn version(&self) -> bool {
+        self.version
     }
 }

@@ -16,10 +16,15 @@ fn main() -> Result<()> {
 
     let cli = cli::Args::parse();
 
+    if let (true, _) | (_, None) = (cli.version(), cli.input()) {
+        println!("mql cli v{} libmql v{}", env!("CARGO_PKG_VERSION"), libmql::VERSION);
+        return Ok(());
+    }
+
     let input = cli.input();
     let output = cli.output();
 
-    let Some(EXTENSION) = input.extension().and_then(|s| s.to_str()) else {
+    let Some(EXTENSION) = input.and_then(|x| x.extension()).and_then(|s| s.to_str()) else {
         bail!("the Major Query Language uses the .mql file extension")
     };
 
@@ -29,7 +34,7 @@ fn main() -> Result<()> {
         };
     }
 
-    let mut input_file = File::open(input).context("could not open file")?;
+    let mut input_file = File::open(input.expect("input should not be none")).context("could not open file")?;
 
     let mut buf = String::new();
 

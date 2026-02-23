@@ -8,6 +8,8 @@ use pest::Parser;
 
 use crate::parser::MQLQueryFile;
 
+pub const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+
 #[derive(Debug, Clone)]
 pub struct ParseResult {
     parsed_mql_file: MQLQueryFile,

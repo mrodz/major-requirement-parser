@@ -4,8 +4,7 @@ use pest_derive::Parser;
 use serde::Serialize;
 
 use crate::{
-    closest_string::closest_string,
-    yale_departments::{closest_department, is_department},
+    VERSION, closest_string::closest_string, yale_departments::{closest_department, is_department}
 };
 
 #[derive(Parser)]
@@ -386,7 +385,6 @@ impl MQLParser {
     fn parse_selector_single(selector_single: Pair<Rule>) -> Result<Selector> {
         assert_eq!(selector_single.as_rule(), Rule::selector_single);
 
-        // selector_single = { statement | XYZ }
         let inner = selector_single
             .into_inner()
             .next()
@@ -498,7 +496,7 @@ impl MQLParser {
 
         Ok(MQLQueryFile {
             requirements,
-            version: env!("CARGO_PKG_VERSION"),
+            version: VERSION,
         })
     }
 }
