@@ -1,0 +1,6 @@
+$mathClass = MATH 2250;
+$linearAlgebra = [$mathClass, MATH 2260];
+$priority = 42;
+$description = "you must take linear algebra";
+
+SELECT 1 FROM $linearAlgebra : $description : $priority;

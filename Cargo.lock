@@ -205,7 +205,7 @@ checksum = "2874a2af47a2325c2001a6e6fad9b16a53b802102b528163885171cf92b15976"
 
 [[package]]
 name = "libmql"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -214,11 +214,12 @@ dependencies = [
  "serde",
  "serde_json",
  "strsim",
+ "visibility",
 ]
 
 [[package]]
 name = "major-requirement-parser-cli"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "anyhow",
  "clap",
@@ -312,10 +313,11 @@ dependencies = [
 
 [[package]]
 name = "pylibmql"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "libmql",
  "pyo3",
+ "pyo3-build-config 0.28.3",
 ]
 
 [[package]]
@@ -329,7 +331,7 @@ dependencies = [
  "memoffset",
  "once_cell",
  "portable-atomic",
- "pyo3-build-config",
+ "pyo3-build-config 0.27.1",
  "pyo3-ffi",
  "pyo3-macros",
  "unindent",
@@ -345,13 +347,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "pyo3-build-config"
+version = "0.28.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e368e7ddfdeb98c9bca7f8383be1648fd84ab466bf2bc015e94008db6d35611e"
+dependencies = [
+ "target-lexicon",
+]
+
+[[package]]
 name = "pyo3-ffi"
 version = "0.27.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2dd13844a4242793e02df3e2ec093f540d948299a6a77ea9ce7afd8623f542be"
 dependencies = [
  "libc",
- "pyo3-build-config",
+ "pyo3-build-config 0.27.1",
 ]
 
 [[package]]
@@ -374,7 +385,7 @@ checksum = "70a3b2274450ba5288bc9b8c1b69ff569d1d61189d4bff38f8d22e03d17f932b"
 dependencies = [
  "heck",
  "proc-macro2",
- "pyo3-build-config",
+ "pyo3-build-config 0.27.1",
  "quote",
  "syn",
 ]
@@ -512,6 +523,17 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
+
+[[package]]
+name = "visibility"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d674d135b4a8c1d7e813e2f8d1c9a58308aee4a680323066025e53132218bd91"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "windows-link"

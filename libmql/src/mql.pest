@@ -1,14 +1,17 @@
 WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
 COMMENT = _{ "//" ~ (!"\n" ~ ANY)* }
 
+var_start = _{ ASCII_ALPHA | "_" }
+var_continue = _{ ASCII_ALPHANUMERIC | "_" }
+variable = @{ "$" ~ var_start ~ var_continue* }
+
 select = { "SELECT" }
 limit = { "LIMIT" }
 from = { "FROM" }
 
 quantity_single = @{ ASCII_DIGIT+ }
 quantity_many = ${ quantity_single ~ "-" ~ quantity_single }
-quantity = { quantity_many | quantity_single }
-
+quantity = { quantity_many | quantity_single | variable }
 class = @{ "CLASS" | "class" }
 placement = @{ "PLACEMENT" | "placement" }
 tag = @{ "TAG" | "tag" }
@@ -21,8 +24,10 @@ range_tag = @{ "RANGE_TAG" | "range_tag" }
 
 bad_query = @{ (ASCII_ALPHANUMERIC | "_")+ }
 
-query_name = ${ (class | placement | tag_dept | tag | dist_dept | dist | range_dist | range_tag | range) 
-  ~ ! (ASCII_ALPHANUMERIC | "_") | bad_query }
+query_name = ${ ((class | placement | tag_dept | tag | dist_dept | dist | range_dist | range_tag | range) 
+~ !(ASCII_ALPHANUMERIC | "_")) | bad_query }
+// query_name = ${ (class | placement | tag_dept | tag | dist_dept | dist | range_dist | range_tag | range) 
+//   ~ ! (ASCII_ALPHANUMERIC | "_") | bad_query }
 
 string = @{ "\"" ~ ( "\"\"" | (!("\"" | "\r" | "\n") ~ (ANY)) )* ~ "\"" }
 
@@ -33,29 +38,29 @@ department_id = { department_id_char{3,4} }
 
 class_id = ${ ASCII_DIGIT{4} ~ "L"? }
 
-class_argument = ${ (bad_department_id ~ (" ")* ~ class_id) | (department_id ~ (" ")* ~ class_id) }
-
-query_argument = { string | class_argument }
-
+class_argument = ${ (department_id ~ (" ")* ~ class_id) | (bad_department_id ~ (" ")* ~ class_id) }
+query_argument = { string | variable | class_argument }
 lpar = _{ "(" }
 rpar = _{ ")" }
 
 XYZ = { query_name ~ lpar ~ (query_argument ~ ("," ~ query_argument)*) ~ rpar }
 
 selector_list = { "[" ~ selector_single ~ ("," ~ selector_single)* ~ "]" }
-selector_single = { statement | XYZ }
-
+selector_single = { statement | variable | XYZ | class_argument }
 selector = { selector_list | selector_single }
 
 semicolon = _{ ";" }
 
 statement = !{ (select | limit) ~ quantity ~ from ~ selector }
-
-sep = _{ ":"}
-
-description = _{ (sep ~ string) }
-priority = _{ (sep ~ quantity_single) }
-
+sep = _{ ":" }
+description = _{ sep ~ (string | variable) }
+priority = _{ sep ~ (quantity_single | variable) }
 special_statement = { statement ~ description ~ priority? }
 
-file = { SOI ~ (special_statement ~ semicolon)* ~ EOI  }
+var_value = { selector_list | XYZ | quantity_many | quantity_single | string | class_argument }
+var_assign = { variable ~ "=" ~ var_value }
+
+extern_keyword = _{ "extern" }
+extern_decl = { extern_keyword ~ variable }
+
+file = { SOI ~ (extern_decl ~ semicolon)* ~ ((var_assign | special_statement) ~ semicolon)* ~ EOI }

@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use pest::iterators::Pair;
 use pest_derive::Parser;
 use serde::Serialize;
+use std::collections::HashMap;
 
 use crate::{
     VERSION, closest_string::closest_string, yale_departments::{closest_department, is_department}
@@ -11,7 +12,7 @@ use crate::{
 #[grammar = "./mql.pest"]
 pub struct MQLParser;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize)]
 pub enum Quantity {
     Single(u16),
     Many { from: u16, to: u16 },
@@ -22,6 +23,20 @@ pub struct Class {
     department_id: String,
     course_number: u16,
     lab: bool,
+}
+
+impl Class {
+    pub fn department_id(&self) -> &str {
+        &self.department_id
+    }
+
+    pub fn course_number(&self) -> u16 {
+        self.course_number
+    }
+
+    pub fn lab(&self) -> bool {
+        self.lab
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -36,7 +51,7 @@ pub enum Selector {
     Placement(String),
     Tag(String),
     TagCode {
-        tag: String, 
+        tag: String,
         code: String
     },
     Dist(String),
@@ -61,7 +76,7 @@ pub enum Selector {
     Query(MQLQuery),
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize)]
 pub enum MQLQueryType {
     Select,
     Limit,
@@ -74,11 +89,39 @@ pub struct MQLQuery {
     selector: Vec<Selector>,
 }
 
+impl MQLQuery {
+    pub fn quantity(&self) -> Quantity {
+        self.quantity
+    }
+
+    pub fn r#type(&self) -> MQLQueryType {
+        self.r#type
+    }
+
+    pub fn selector(&self) -> &[Selector] {
+        &self.selector
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct MQLRequirement {
     query: MQLQuery,
     description: String,
     priority: u16,
+}
+
+impl MQLRequirement {
+    pub fn query(&self) -> &MQLQuery {
+        &self.query
+    }
+
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+
+    pub fn priority(&self) -> u16 {
+        self.priority
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -96,6 +139,29 @@ impl MQLQueryFile {
         &self.requirements
     }
 }
+
+#[derive(Debug, Clone)]
+pub enum VarValue {
+    SelectorList(Vec<Selector>),
+    Selector(Selector),
+    Quantity(Quantity),
+    String(String),
+    Class(Class),
+}
+
+impl VarValue {
+    pub(crate) fn type_name(&self) -> &'static str {
+        match self {
+            VarValue::SelectorList(_) => "selector list",
+            VarValue::Selector(_) => "selector",
+            VarValue::Quantity(_) => "quantity",
+            VarValue::String(_) => "string",
+            VarValue::Class(_) => "class",
+        }
+    }
+}
+
+type Variables = HashMap<String, VarValue>;
 
 pub(crate) fn renamed_rules_impl(rule: &Rule) -> String {
     match *rule {
@@ -126,18 +192,17 @@ macro_rules! bail_with_span {
 }
 
 impl MQLParser {
-    // quantity = { quantity_single }
-    fn parse_quantity(quantity: Pair<Rule>, top_level: bool) -> Result<Quantity> {
+    // quantity = { quantity_many | quantity_single | variable }
+    fn parse_quantity(quantity: Pair<Rule>, vars: &Variables, top_level: bool) -> Result<Quantity> {
         assert_eq!(quantity.as_rule(), Rule::quantity);
 
         let inner = quantity
             .into_inner()
             .next()
-            .context("should have { quantity_single | quantity_multiple }")?;
+            .context("should have { quantity_single | quantity_multiple | variable }")?;
 
         match inner.as_rule() {
             Rule::quantity_single => {
-                // quantity_single = { ASCII_DIGIT* }
                 let as_ascii = inner.as_str();
                 let as_number = as_ascii
                     .parse::<u16>()
@@ -178,21 +243,44 @@ impl MQLParser {
 
                 Ok(Quantity::Many { from, to })
             }
-            rule => unreachable!("should have {{ quantity_many | quantity_single }}, got {rule:?}"),
+            Rule::variable => {
+                let name = inner.as_str();
+                let span = inner.as_span();
+                match vars.get(name) {
+                    Some(VarValue::Quantity(q)) => {
+                        if top_level {
+                            if let Quantity::Many { from, .. } = q {
+                                if *from == 0 {
+                                    bail_with_span!(
+                                        span,
+                                        "cannot select a range starting from zero on a top-level SELECT"
+                                    );
+                                }
+                            }
+                        }
+                        Ok(q.clone())
+                    }
+                    Some(v) => bail_with_span!(
+                        span,
+                        "expected quantity, found {} (`{name}`)",
+                        v.type_name()
+                    ),
+                    None => bail_with_span!(span, "undefined variable `{name}`"),
+                }
+            }
+            rule => unreachable!("should have {{ quantity_many | quantity_single | variable }}, got {rule:?}"),
         }
     }
 
-    fn parse_selector_list(selector_list: Pair<Rule>) -> Result<Vec<Selector>> {
+    fn parse_selector_list(selector_list: Pair<Rule>, vars: &Variables) -> Result<Vec<Selector>> {
         assert_eq!(selector_list.as_rule(), Rule::selector_list);
 
         let inner = selector_list.into_inner();
-
         let mut selectors = vec![];
 
         for selector_single in inner {
             assert_eq!(selector_single.as_rule(), Rule::selector_single);
-
-            selectors.push(Self::parse_selector_single(selector_single)?);
+            selectors.extend(Self::parse_selector_single(selector_single, vars)?);
         }
 
         Ok(selectors)
@@ -206,68 +294,80 @@ impl MQLParser {
             .to_owned()
     }
 
-    fn parse_function_argument(argument: Pair<Rule>) -> Result<Argument> {
+    fn parse_class_from_pair(class_argument: Pair<Rule>) -> Result<Class> {
+        assert_eq!(class_argument.as_rule(), Rule::class_argument);
+
+        let mut inner_children = class_argument.into_inner();
+        let department_id_pair = inner_children.next().context("expected department_id")?;
+
+        if department_id_pair.as_rule() == Rule::bad_department_id {
+            bail_with_span!(
+                department_id_pair.as_span(),
+                "departments must be 3-4 uppercase ASCII character symbols"
+            );
+        }
+
+        let class_id = inner_children.next().context("expected class_id")?;
+        let mut class_id_str = class_id.as_str();
+        let lab = class_id_str.ends_with('L');
+        if lab {
+            class_id_str = &class_id_str[..class_id_str.len() - 1];
+        }
+
+        let course_number = class_id_str
+            .parse::<u16>()
+            .context("could not parse class_id into u16")?;
+        let department_id = department_id_pair.as_str();
+
+        if !is_department(department_id) {
+            let potential_misspelling = closest_department(department_id);
+            bail_with_span!(
+                department_id_pair.as_span(),
+                "this department does not exist in Yale's course catalog (Did you mean: {potential_misspelling})"
+            )
+        }
+
+        Ok(Class {
+            department_id: department_id.to_owned(),
+            course_number,
+            lab,
+        })
+    }
+
+    fn parse_function_argument(argument: Pair<Rule>, vars: &Variables) -> Result<Argument> {
         assert_eq!(argument.as_rule(), Rule::query_argument);
 
         let inner = argument.into_inner().next().unwrap();
 
         match inner.as_rule() {
             Rule::string => Ok(Argument::String(Self::parse_string(inner))),
-            Rule::class_argument => {
-                // class_argument = @{ department_id ~ WHITESPACE ~ class_id }
-                let mut inner_children = inner.into_inner();
-                let department_id_pair = inner_children.next().context("expected department_id")?;
-
-                if department_id_pair.as_rule() == Rule::bad_department_id {
-                    bail_with_span!(
-                        department_id_pair.as_span(),
-                        "departments must be 3-4 uppercase ASCII character symbols"
-                    );
+            Rule::class_argument => Ok(Argument::Class(Self::parse_class_from_pair(inner)?)),
+            Rule::variable => {
+                let name = inner.as_str();
+                let span = inner.as_span();
+                match vars.get(name) {
+                    Some(VarValue::String(s)) => Ok(Argument::String(s.clone())),
+                    Some(VarValue::Class(c)) => Ok(Argument::Class(c.clone())),
+                    Some(v) => bail_with_span!(
+                        span,
+                        "expected string or class argument, found {} (`{name}`)",
+                        v.type_name()
+                    ),
+                    None => bail_with_span!(span, "undefined variable `{name}`"),
                 }
-
-                let class_id = inner_children.next().context("expected class_id")?;
-
-                let mut class_id_str = class_id.as_str();
-
-                let lab = class_id_str.ends_with('L');
-
-                if lab {
-                    class_id_str = &class_id_str[..class_id_str.len() - 1];
-                }
-
-                let course_number = class_id_str
-                    .parse::<u16>()
-                    .context("could not parse class_id into u16")?;
-                let department_id = department_id_pair.as_str();
-
-                if !is_department(department_id) {
-                    let potential_misspelling = closest_department(department_id);
-                    bail_with_span!(
-                        department_id_pair.as_span(),
-                        "this department does not exist in Yale's course catalog (Did you mean: {potential_misspelling})"
-                    )
-                }
-
-                Ok(Argument::Class(Class {
-                    department_id: department_id.to_owned(),
-                    course_number,
-                    lab,
-                }))
             }
-            rule => unreachable!("should have {{ string | class_argument }}, got {rule:?}"),
+            rule => unreachable!("should have {{ string | class_argument | variable }}, got {rule:?}"),
         }
     }
 
-    // XYZ = { query_name ~ _lpar ~ (query_argument ~ ("," ~ query_argument)*) ~ _rpar }
-    fn parse_xyz(xyz: Pair<Rule>) -> Result<Selector> {
+    // XYZ = { query_name ~ lpar ~ (query_argument ~ ("," ~ query_argument)*) ~ rpar }
+    fn parse_xyz(xyz: Pair<Rule>, vars: &Variables) -> Result<Selector> {
         assert_eq!(xyz.as_rule(), Rule::XYZ);
         let span = xyz.as_span();
 
         let mut inner = xyz.into_inner();
 
-        let next = inner.next().context("XYZ should have query_name")?;
-
-        let query_name = next;
+        let query_name = inner.next().context("XYZ should have query_name")?;
         let query_name_span = query_name.as_span();
         assert_eq!(query_name.as_rule(), Rule::query_name);
 
@@ -276,7 +376,7 @@ impl MQLParser {
         let mut args = vec![];
 
         for arg in inner {
-            args.push(Self::parse_function_argument(arg)?);
+            args.push(Self::parse_function_argument(arg, vars)?);
         }
 
         let selector = match query_name_inner.as_rule() {
@@ -362,7 +462,7 @@ impl MQLParser {
                     )
                 };
 
-                Selector::RangeTag { from: from.clone(), to: to.clone(), tag: tag.clone() }    
+                Selector::RangeTag { from: from.clone(), to: to.clone(), tag: tag.clone() }
             }
             Rule::bad_query => {
                 let potential_misspelling = closest_string(
@@ -382,27 +482,43 @@ impl MQLParser {
         Ok(selector)
     }
 
-    fn parse_selector_single(selector_single: Pair<Rule>) -> Result<Selector> {
+    // selector_single = { statement | XYZ | variable }
+    // Returns Vec<Selector> to allow SelectorList variables to expand in-place.
+    fn parse_selector_single(selector_single: Pair<Rule>, vars: &Variables) -> Result<Vec<Selector>> {
         assert_eq!(selector_single.as_rule(), Rule::selector_single);
 
         let inner = selector_single
             .into_inner()
             .next()
-            .context("should have { XYZ }")?;
+            .context("should have { statement | XYZ | class_argument | variable }")?;
 
-        if inner.as_rule() == Rule::statement {
-            return Ok(Selector::Query(
-                Self::parse_query(inner, false).context("could not parse nested query")?,
-            ));
+        match inner.as_rule() {
+            Rule::statement => Ok(vec![Selector::Query(
+                Self::parse_query(inner, vars, false).context("could not parse nested query")?,
+            )]),
+            Rule::XYZ => Ok(vec![Self::parse_xyz(inner, vars)?]),
+            Rule::class_argument => Ok(vec![Selector::Class(Self::parse_class_from_pair(inner)?)]),
+            Rule::variable => {
+                let name = inner.as_str();
+                let span = inner.as_span();
+                match vars.get(name) {
+                    Some(VarValue::Selector(s)) => Ok(vec![s.clone()]),
+                    Some(VarValue::SelectorList(list)) => Ok(list.clone()),
+                    Some(VarValue::Class(c)) => Ok(vec![Selector::Class(c.clone())]),
+                    Some(v) => bail_with_span!(
+                        span,
+                        "expected selector, found {} (`{name}`)",
+                        v.type_name()
+                    ),
+                    None => bail_with_span!(span, "undefined variable `{name}`"),
+                }
+            }
+            rule => unreachable!("should have {{ statement | XYZ | class_argument | variable }}, got {rule:?}"),
         }
-
-        let xyz = Self::parse_xyz(inner)?;
-
-        Ok(xyz)
     }
 
     // selector = { selector_list | selector_single }
-    fn parse_selector(selector: Pair<Rule>) -> Result<Vec<Selector>> {
+    fn parse_selector(selector: Pair<Rule>, vars: &Variables) -> Result<Vec<Selector>> {
         assert_eq!(selector.as_rule(), Rule::selector);
 
         let inner = selector
@@ -411,13 +527,13 @@ impl MQLParser {
             .context("should have { selector_list | selector_single }")?;
 
         match inner.as_rule() {
-            Rule::selector_list => Self::parse_selector_list(inner),
-            Rule::selector_single => Self::parse_selector_single(inner).map(|e| vec![e]),
+            Rule::selector_list => Self::parse_selector_list(inner, vars),
+            Rule::selector_single => Self::parse_selector_single(inner, vars),
             _ => unreachable!("should have {{ selector_list | selector_single }}"),
         }
     }
 
-    fn parse_query(query: Pair<Rule>, top_level: bool) -> Result<MQLQuery> {
+    fn parse_query(query: Pair<Rule>, vars: &Variables, top_level: bool) -> Result<MQLQuery> {
         assert_eq!(query.as_rule(), Rule::statement);
 
         // { select ~ quantity ~ from ~ selector }
@@ -427,7 +543,7 @@ impl MQLParser {
         let select = inner.next().context(
             "should have { select ~ quantity ~ from ~ selector ~ semicolon }, missing select",
         )?;
-        
+
         let r#type = match select.as_rule() {
             Rule::select => MQLQueryType::Select,
             Rule::limit if top_level => MQLQueryType::Limit,
@@ -451,46 +567,152 @@ impl MQLParser {
         assert_eq!(selector.as_rule(), Rule::selector);
 
         let quantity =
-            Self::parse_quantity(quantity, top_level).context("failed parsing quantity")?;
+            Self::parse_quantity(quantity, vars, top_level).context("failed parsing quantity")?;
 
-        let selector = Self::parse_selector(selector).context("failed parsing selector")?;
+        let selector = Self::parse_selector(selector, vars).context("failed parsing selector")?;
 
         Ok(MQLQuery { quantity, r#type, selector })
     }
 
-    pub fn parse_file(root_pair: Pair<Rule>) -> Result<MQLQueryFile> {
+    // var_value = { selector_list | XYZ | quantity_many | quantity_single | string | class_argument }
+    pub(crate) fn parse_var_value(var_value: Pair<Rule>, vars: &Variables) -> Result<VarValue> {
+        assert_eq!(var_value.as_rule(), Rule::var_value);
+
+        let inner = var_value.into_inner().next().context("expected value in var_value")?;
+
+        match inner.as_rule() {
+            Rule::selector_list => {
+                Ok(VarValue::SelectorList(Self::parse_selector_list(inner, vars)?))
+            }
+            Rule::XYZ => {
+                Ok(VarValue::Selector(Self::parse_xyz(inner, vars)?))
+            }
+            Rule::quantity_many => {
+                let mut children = inner.into_inner();
+                let from_node = children.next().unwrap();
+                let from = from_node.as_str().parse::<u16>().context("quantity could not fit as u16")?;
+                let to_node = children.next().unwrap();
+                let to = to_node.as_str().parse::<u16>().context("quantity could not fit as u16")?;
+                if to < from {
+                    bail_with_span!(
+                        to_node.as_span(),
+                        "for any range n-k, k>=n must be true. {to}<{from}"
+                    );
+                }
+                Ok(VarValue::Quantity(Quantity::Many { from, to }))
+            }
+            Rule::quantity_single => {
+                let n = inner.as_str().parse::<u16>().context("quantity could not fit as u16")?;
+                if n == 0 {
+                    bail_with_span!(inner.as_span(), "cannot assign zero as a quantity");
+                }
+                Ok(VarValue::Quantity(Quantity::Single(n)))
+            }
+            Rule::string => Ok(VarValue::String(Self::parse_string(inner))),
+            Rule::class_argument => Ok(VarValue::Class(Self::parse_class_from_pair(inner)?)),
+            rule => unreachable!("unexpected var_value inner: {rule:?}"),
+        }
+    }
+
+    pub fn parse_file(root_pair: Pair<Rule>, externals: HashMap<String, VarValue>) -> Result<MQLQueryFile> {
         assert_eq!(root_pair.as_rule(), Rule::file);
 
         let mut requirements = vec![];
+        let mut vars: Variables = HashMap::new();
 
         let children = root_pair.into_inner();
 
         for child in children {
             match child.as_rule() {
                 Rule::EOI => (),
+                Rule::extern_decl => {
+                    // extern_decl = { extern_keyword ~ variable }
+                    let var_pair = child.into_inner().next().context("expected variable in extern_decl")?;
+                    assert_eq!(var_pair.as_rule(), Rule::variable);
+                    let var_name = var_pair.as_str().to_owned();
+                    let span = var_pair.as_span();
+
+                    match externals.get(&var_name).cloned() {
+                        Some(value) => { vars.insert(var_name, value); }
+                        None => bail_with_span!(
+                            span,
+                            "extern variable `{var_name}` was declared but not provided by the caller"
+                        ),
+                    }
+                }
+                Rule::var_assign => {
+                    // var_assign = { variable ~ "=" ~ var_value }
+                    let mut inner = child.into_inner();
+                    let var_pair = inner.next().context("expected variable in var_assign")?;
+                    assert_eq!(var_pair.as_rule(), Rule::variable);
+                    let var_name = var_pair.as_str().to_owned();
+
+                    let var_value_pair = inner.next().context("expected var_value in var_assign")?;
+                    let value = Self::parse_var_value(var_value_pair, &vars)?;
+
+                    vars.insert(var_name, value);
+                }
                 Rule::special_statement => {
                     let mut inner = child.into_inner();
 
                     let statement = inner.next().unwrap();
-                    let description = inner.next().unwrap();
+                    let desc_pair = inner.next().unwrap();
 
-                    let priority = if let Some(priority) = inner.next() {
-                        let as_ascii = priority.as_str();
-                        as_ascii
-                            .parse::<u16>()
-                            .context("selection could not fit as u16")?
+                    let priority = if let Some(priority_pair) = inner.next() {
+                        match priority_pair.as_rule() {
+                            Rule::quantity_single => {
+                                let as_ascii = priority_pair.as_str();
+                                as_ascii.parse::<u16>().context("selection could not fit as u16")?
+                            }
+                            Rule::variable => {
+                                let name = priority_pair.as_str();
+                                let span = priority_pair.as_span();
+                                match vars.get(name) {
+                                    Some(VarValue::Quantity(Quantity::Single(n))) => *n,
+                                    Some(VarValue::Quantity(_)) => bail_with_span!(
+                                        span,
+                                        "priority must be a single number, not a range (`{name}`)"
+                                    ),
+                                    Some(v) => bail_with_span!(
+                                        span,
+                                        "expected quantity for priority, found {} (`{name}`)",
+                                        v.type_name()
+                                    ),
+                                    None => bail_with_span!(span, "undefined variable `{name}`"),
+                                }
+                            }
+                            rule => unreachable!("unexpected priority rule: {rule:?}"),
+                        }
                     } else {
                         1
                     };
 
-                    let query = Self::parse_query(statement, true)?;
+                    let description = match desc_pair.as_rule() {
+                        Rule::string => Self::parse_string(desc_pair),
+                        Rule::variable => {
+                            let name = desc_pair.as_str();
+                            let span = desc_pair.as_span();
+                            match vars.get(name) {
+                                Some(VarValue::String(s)) => s.clone(),
+                                Some(v) => bail_with_span!(
+                                    span,
+                                    "expected string for description, found {} (`{name}`)",
+                                    v.type_name()
+                                ),
+                                None => bail_with_span!(span, "undefined variable `{name}`"),
+                            }
+                        }
+                        rule => unreachable!("unexpected description rule: {rule:?}"),
+                    };
+
+                    let query = Self::parse_query(statement, &vars, true)?;
                     requirements.push(MQLRequirement {
                         query,
-                        description: Self::parse_string(description),
+                        description,
                         priority,
                     });
                 }
-                rule => unreachable!("should have {{ SOI ~ statement* ~ EOI  }}, got {rule:?}"),
+                rule => unreachable!("should have {{ SOI ~ extern_decl* ~ (var_assign | special_statement)* ~ EOI }}, got {rule:?}"),
             }
         }
 

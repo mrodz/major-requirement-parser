@@ -32,6 +32,12 @@ pub(crate) struct Args {
     #[arg(long, short)]
     output: Option<PathBuf>,
 
+    /// Inject a value for an extern variable declared in the .mql file.
+    /// Format: NAME=EXPR where EXPR is any valid MQL value expression.
+    /// Example: --var 'myClass=MATH 2250' --var 'courses=[MATH 2250, MATH 2260]'
+    #[arg(long = "var", short = 'D', value_name = "NAME=EXPR")]
+    vars: Vec<String>,
+
     #[arg(long = "version", short = 'V', action = clap::ArgAction::SetTrue)]
     version: bool,
 }
@@ -43,6 +49,10 @@ impl Args {
 
     pub fn output(&self) -> Option<&Path> {
         self.output.as_deref()
+    }
+
+    pub fn vars(&self) -> &[String] {
+        &self.vars
     }
 
     pub fn version(&self) -> bool {

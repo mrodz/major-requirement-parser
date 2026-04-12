@@ -3,6 +3,7 @@ mod cli;
 use anyhow::{Context, Result, bail};
 use clap::Parser as ClapParser;
 
+use std::collections::HashMap;
 use std::io::Read;
 use std::time::Instant;
 use std::{fs::File, io::Write};
@@ -42,7 +43,17 @@ fn main() -> Result<()> {
         .read_to_string(&mut buf)
         .context("file was not UTF-8")?;
 
-    let result = libmql::parse(&buf)?;
+    let mut externals = HashMap::new();
+    for raw in cli.vars() {
+        let (name, expr) = raw.split_once('=').with_context(|| {
+            format!("--var argument must be of the form NAME=EXPR, got: {raw:?}")
+        })?;
+        let value = libmql::parse_extern_value(expr)
+            .with_context(|| format!("failed to parse value for {name}: {expr:?}"))?;
+        externals.insert(format!("${name}"), value);
+    }
+
+    let result = libmql::parse_with_externals(&buf, externals)?;
 
     if let Some(output_path) = cli.output() {
         let mut output_file = File::options()

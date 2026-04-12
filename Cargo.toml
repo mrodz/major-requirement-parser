@@ -1,6 +1,6 @@
 [package]
 name = "pylibmql"
-version = "0.1.11"
+version = "0.1.12"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -17,3 +17,6 @@ extension-module = ["pyo3/extension-module"]
 
 [workspace]
 members = [ "cli", "libmql"]
+
+[build-dependencies]
+pyo3-build-config = { version = "0.28.3", features = ["resolve-config"] }

@@ -1,0 +1,4 @@
+extern $LEVEL;
+extern $LEVEL_DESC;
+
+SELECT 1 FROM DIST_DEPT($LEVEL, "ARBC") : $LEVEL_DESC : 1;
